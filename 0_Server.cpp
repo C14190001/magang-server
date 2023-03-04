@@ -2,40 +2,60 @@
 #include <winsock.h>
 #include <string>
 using namespace std;
-#define PORT 9909
-#define maxBuffer 768
+
+//Server Settings ---------------------------------
+#define PORT 3939
+#define bufferSize 768
 #define maxClients 100
+//-------------------------------------------------
 
 struct sockaddr_in srv;
 fd_set fr, fw, fe;
 int nMaxFd, nSocket, nArrClient[maxClients];
+string clientsID[maxClients];
 
 void receiveMessage(int nClientSocket) {
-	char buff[maxBuffer + 1] = { 0, };
-	int nRet = recv(nClientSocket, buff, maxBuffer, 0);
+	char buff[bufferSize + 1] = { 0, };
+	int nRet = recv(nClientSocket, buff, bufferSize, 0);
+
+	//-------------------------------------------------
+	//Client disconnects ------------------------------
 	if (nRet < 0) {
-		cout << "Closing connection from socket " << nClientSocket << endl;
 		closesocket(nClientSocket);
+		string cID;
+		for (int i = 0; i < maxClients; i++) {
+			if (nArrClient[i] == nClientSocket) {
+				cID = clientsID[i];
+				break;
+			}
+		}
+		cout << "[INFO] Client ID " << cID << " (Socket " << nClientSocket << ") was disconnected.";
 		for (int i = 0; i < maxClients; i++) {
 			if (nArrClient[i] == nClientSocket) {
 				nArrClient[i] = 0;
+				clientsID[i] = "0";
 				break;
 			}
 		}
 	}
+	//Receive commands from Clients -------------------
 	else {
-		cout << "Client socket " << nClientSocket << " says: " << buff << endl;
-
-		//Contoh value:
 		//0001/Spec/CPU/Intel Core i7/
 		//0001/Status/Shutdown/09-03-2023 03:39/
 		//0001/Uptime/0:03:39:39/
 		//0001/Apps/App A/App B/App C/ .dst/
 
-		int n = 0, prev = 0, nApps = 0;
-		bool isCommand = false;
-		string text(buff), id, command, status, spec, apps[300], value;
-		if (!text.empty() && text != ".") {
+		string cID;
+		for (int i = 0; i < maxClients; i++) {
+			if (nArrClient[i] == nClientSocket) {
+				cID = clientsID[i];
+				break;
+			}
+		}
+
+		int n = 0, prev = 0, nApps = 0; bool isCommand = false;
+		string text(buff), id, command, status, spec, apps[300], value; //( Cek ide dibawah )
+		if (!text.empty()) {
 			for (int i = 0; i < text.length(); i++) {
 				if (text[i] == '/') {
 					if (n == 0) {
@@ -45,6 +65,7 @@ void receiveMessage(int nClientSocket) {
 						command = text.substr(prev, (i - prev));
 					}
 					else if (n > 1) {
+						cout << "[INFO] Receive [" << command << "] command from Client ID " << cID << " (Socket" << nClientSocket << ").\n";
 						if (command == "Status") {
 							isCommand = true;
 							if (status.empty()) {
@@ -78,27 +99,23 @@ void receiveMessage(int nClientSocket) {
 				}
 			}
 
-			//DEBUG
-			//cout << "\nID: " << id << ", Command: " << command << ", Status: " << status << ", Spec: " << spec << ", Value: " << value;
-			//cout << "\nApps:\n";
-			//for (int i = 0; i < nApps; i++) {
-			//	cout << apps[i] << ", ";
-			//}
+			//( Lakukan sesuatu dengan variable yang sudah didapatkan)
+			//INFO: Maks buffer untuk kirim pesan ke Client adalah 30.
+			//IDE: Mending terima command langsung diproses daripada ditaruh dalam variable.
+			//     Variable string nya dikurangi jadi commands & value saja (ID dari array clientId).
+			//     Nanti dalam "else if command == ....", baru dibaca value nya, di-substring, di proses.
+
 		}
 
-		if (!isCommand /*&& text != "." */) {
-			cout << "\n( Invalid command )\n";
-			send(nClientSocket, "Error.", maxBuffer, 0);
+		if (!isCommand) {
+			cout << "[WARN] Invalid command from Client ID " << cID << " (Socket " << nClientSocket << ").\n";
 		}
-		else {
-			send(nClientSocket, "Success.", maxBuffer, 0);
-		}
-		cout << endl;
 	}
+	//-------------------------------------------------
 }
 
 void receiveNewConnection() {
-	char buff[maxBuffer + 1] = { 0, };
+	char buff[bufferSize + 1] = { 0, };
 	if (FD_ISSET(nSocket, &fr)) {
 		int nLen = sizeof(struct sockaddr);
 		int nClientSocket = accept(nSocket, NULL, &nLen);
@@ -108,24 +125,15 @@ void receiveNewConnection() {
 			for (nIndex = 0; nIndex < maxClients; nIndex++) {
 				if (nArrClient[nIndex] == 0) {
 					nArrClient[nIndex] = nClientSocket;
-
-					////DEBUG
-					//cout << "nArrClient:\n";
-					//for (int i = 0; i < maxClients; i++) {
-					//	cout << nArrClient[i] << " ";
-					//}
-					//cout << "\nnArrClientID:\n";
-					//for (int i = 0; i < maxClients; i++) {
-					//	cout << nArrClientID[i] << " ";
-					//}
-					//cout << endl;
-
-					cout << "A new client has just connected!\n";
+					recv(nClientSocket, buff, 10, 0);
+					string newId(buff);
+					clientsID[nIndex] = newId;
+					cout << "[INFO] Found Client ID " << newId << " (Socket " << nClientSocket << ")\n";
 					break;
 				}
 			}
 			if (nIndex >= maxClients) {
-				cout << "Current connection is full!\n";
+				cout << "[WARN] Connection is full!\n";
 			}
 		}
 	}
@@ -138,94 +146,93 @@ void receiveNewConnection() {
 	}
 }
 
-int main()
-{
-	int nRet = 0;
+void exitFail() {
+	WSACleanup();
+	system("PAUSE");
+	exit(EXIT_FAILURE);
+}
 
-	//Initialize WSA
+int main() {
+	int nRet = 0;
+	cout << "-------------------------------------\n";
+	cout << "[ Server settings ]\n\n";
+	cout << "Server IP: " << INADDR_ANY << endl;
+	cout << "Connection Port: " << PORT << endl;
+	cout << "Maximum Clients: " << maxClients << endl;
+	cout << "Buffer size: " << bufferSize << endl;
+	cout << "-------------------------------------\n\n";
+
+	//-------------------------------------------------
+	//1. Initialize WSA -------------------------------
 	WSADATA ws;
 	if (WSAStartup(MAKEWORD(2, 2), &ws) < 0) {
-		cout << "Failed initialize WSA.\n";
-		WSACleanup();
-		exit(EXIT_FAILURE);
+		cout << "[ERROR] Error initializing WSA.\n";
+		exitFail();
 	}
-
-	//Open the socket
+	//2. Create socket --------------------------------
 	nSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (nSocket < 0) {
-		cout << "Socket isn't openned.\n";
-		WSACleanup();
-		exit(EXIT_FAILURE);
+		cout << "[ERROR] Error creating socket.\n";
+		exitFail();
 	}
-
-	//Enviroment
+	//3. Enviroment Settings --------------------------
 	srv.sin_family = AF_INET;
 	srv.sin_port = htons(PORT);
-	srv.sin_addr.s_addr = INADDR_ANY; //Local Machine IP
+	srv.sin_addr.s_addr = INADDR_ANY; //Get local Machine IP
 	memset(&(srv.sin_zero), 0, 8);
-
-	//Setsockopt
+	//4. Setsockopt -----------------------------------
 	int nOptVal = 0; int nOptLen = sizeof(nOptVal);
 	nRet = setsockopt(nSocket, SOL_SOCKET, SO_REUSEADDR, (const char*)&nOptVal, nOptLen);
 	if (nRet) {
-		cout << "Setsockopt Failed.\n";
-		WSACleanup();
-		exit(EXIT_FAILURE);
+		cout << "[ERROR] Error during Setsockopt.\n";
+		exitFail();
 	}
-
-	//Bind
+	//5. Bind -----------------------------------------
 	nRet = bind(nSocket, (sockaddr*)&srv, sizeof(sockaddr));
 	if (nRet < 0) {
-		cout << "Failed binding to Local port.\n";
-		WSACleanup();
-		exit(EXIT_FAILURE);
+		cout << "[ERROR] Error binding to Local port.\n";
+		exitFail();
 	}
 
-	//Listens to local port
+	//6. Listens to local port ------------------------
 	nRet = listen(nSocket, maxClients);
 	if (nRet < 0) {
-		cout << "Failed to listen to Local port.\n";
-		WSACleanup();
-		exit(EXIT_FAILURE);
+		cout << "[ERROR] Error listening to Local port.\n";
+		exitFail();
 	}
+	//-------------------------------------------------
 
 	nMaxFd = nSocket;
 	struct timeval tv;
 	tv.tv_sec = 1; tv.tv_usec = 0; //Wait new request every second.
-	cout << "Server is running..\n";
+	cout << "[INFO] Server is running...\n";
 	while (1) {
-		//Clear socket descriptors
+		//-------------------------------------------------
+		//Clear socket descriptors ------------------------
 		FD_ZERO(&fr);
 		FD_ZERO(&fw);
 		FD_ZERO(&fe);
-
-		//Set socket descriptors
+		//Set socket descriptors --------------------------
 		FD_SET(nSocket, &fr);
-		//FD_SET(nSocket, &fw);
 		FD_SET(nSocket, &fe);
-
-		//Send & Receive message with client.
+		//Send & Receive message with client. -------------
 		for (int i = 0; i < maxClients; i++) {
 			if (nArrClient[i] != 0) {
 				FD_SET(nArrClient[i], &fr);
 				FD_SET(nArrClient[i], &fe);
 			}
 		}
+		//-------------------------------------------------
 
-		//Waiting for new request & process those requests.
+		//Listening to new requests from Clients ----------
 		nRet = select(nMaxFd + 1, &fr, &fw, &fe, &tv);
-		if (nRet > 0) {
-			cout << "Processing client request..\n";
-			receiveNewConnection();
-		}
-		else if (nRet == 0) {
-			//No connection / communication request has been made.
-		}
+		if (nRet > 0) { receiveNewConnection(); }
+		else if (nRet == 0) {}
 		else {
-			//Failed.
-			cout << "Failed to process requess." << endl;
+			cout << "[ERROR] Failed to process requess." << endl;
 			WSACleanup();
 			exit(EXIT_FAILURE);
 		}
+		//-------------------------------------------------
 	}
 }
