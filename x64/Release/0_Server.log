@@ -1,0 +1,8 @@
+﻿  0_Server.cpp
+D:\LEAP Magang\0_Server\0_Server.cpp(104,21): warning C4244: 'initializing': conversion from 'SOCKET' to 'int', possible loss of data
+D:\LEAP Magang\0_Server\0_Server.cpp(154,18): warning C4244: '=': conversion from 'SOCKET' to 'int', possible loss of data
+  Generating code
+  Previous IPDB not found, fall back to full compilation.
+  All 106 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  Finished generating code
+  0_Server.vcxproj -> D:\LEAP Magang\0_Server\x64\Release\0_Server.exe
