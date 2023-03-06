@@ -5,7 +5,7 @@ using namespace std;
 
 //Server Settings ---------------------------------
 #define PORT 3939
-#define bufferSize 768
+#define bufferSize 768 //Hanya dipakai dalam menerima data Client
 #define maxClients 100
 //-------------------------------------------------
 
@@ -129,6 +129,11 @@ void receiveNewConnection() {
 					string newId(buff);
 					clientsID[nIndex] = newId;
 					cout << "[INFO] Found Client ID " << newId << " (Socket " << nClientSocket << ")\n";
+
+					//DATABASE:
+					//Cek ID dengan database, jika tidak ada, 
+					//buat ID baru (Auto-increment).
+
 					break;
 				}
 			}
