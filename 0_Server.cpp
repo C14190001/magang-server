@@ -29,7 +29,7 @@ void receiveMessage(int nClientSocket) {
 				break;
 			}
 		}
-		cout << "[INFO] Client ID " << cID << " (Socket " << nClientSocket << ") was disconnected.";
+		cout << "[INFO] Client ID " << cID << " (Socket " << nClientSocket << ") was disconnected.\n";
 		for (int i = 0; i < maxClients; i++) {
 			if (nArrClient[i] == nClientSocket) {
 				nArrClient[i] = 0;
